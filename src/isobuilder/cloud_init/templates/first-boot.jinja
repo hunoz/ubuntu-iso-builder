@@ -1,0 +1,38 @@
+    # Copy first-boot script to target system
+    - curtin in-target -- mkdir -p /opt/post-install
+    - |
+        cat > /target/opt/post-install/first-boot.sh << 'FIRSTBOOT'
+        #!/bin/bash
+        # First boot script
+        echo "Running first boot configuration..."
+
+        # Example: Update system
+        apt-get update
+        apt-get upgrade -y
+
+        # Add your custom commands here
+        echo "First boot completed at $(date)" >> /var/log/first-boot.log
+
+        # Disable this service after first run
+        systemctl disable first-boot.service
+        FIRSTBOOT
+    - curtin in-target -- chmod +x /opt/post-install/first-boot.sh
+
+
+    # Create systemd service for first boot
+    - |
+        cat > /target/etc/systemd/system/first-boot.service << 'SERVICE'
+        [Unit]
+        Description=First Boot Configuration
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=oneshot
+        ExecStart=/opt/post-install/first-boot.sh
+        RemainAfterExit=yes
+
+        [Install]
+        WantedBy=multi-user.target
+        SERVICE
+    - curtin in-target -- systemctl enable first-boot.service

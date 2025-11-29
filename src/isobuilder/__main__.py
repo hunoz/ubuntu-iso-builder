@@ -1,6 +1,9 @@
 import argparse
+from pathlib import Path
 
 from isobuilder.cloud_init import render_template
+from isobuilder.iso_build import build_iso
+from isobuilder.utils.constants import BUILD_DIR
 
 parser = argparse.ArgumentParser(description = "CLI for generating a complete cloud-init file and building the ISO")
 parser.add_argument(
@@ -40,8 +43,6 @@ parser.add_argument(
 def main():
     args = parser.parse_args()
 
-    print(args)
-
     cloud_init_file = render_template({
         "hostname": args.hostname,
         "admin_username": args.admin_username,
@@ -49,7 +50,20 @@ def main():
         "ssh_keys": args.ssh_key,
         "encryption_password": args.encryption_password,
     })
-    print(cloud_init_file)
+
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+
+    cloud_init_filepath = Path(f"{BUILD_DIR}/cloud-init.yaml")
+
+    with open(cloud_init_filepath, "w+") as f:
+        f.write(cloud_init_file)
+
+    build_iso(
+        str(cloud_init_filepath.absolute()),
+        work_dir=str(BUILD_DIR.absolute())
+    )
+
+
 
 
 
