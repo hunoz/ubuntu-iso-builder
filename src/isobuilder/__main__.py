@@ -1,13 +1,12 @@
 import argparse
-from pathlib import Path
 
-from isobuilder.cloud_init import render_template
+from isobuilder.cloud_init import generate_cloudinit_config
 from isobuilder.iso_build import build_iso
 from isobuilder.utils.constants import BUILD_DIR
 
 parser = argparse.ArgumentParser(description = "CLI for generating a complete cloud-init file and building the ISO")
 parser.add_argument(
-    "--hostname", "-s",
+    "--hostname", "-n",
     required=True,
     help="Hostname that the machine using the ISO will have"
 )
@@ -40,26 +39,28 @@ parser.add_argument(
     help="The password used to encrypt the OS volume",
 )
 
+parser.add_argument(
+    "--disk-serial", "-s",
+    required=True,
+    help="The serial number of the disk to use for the OS",
+)
+
 def main():
     args = parser.parse_args()
 
-    cloud_init_file = render_template({
+    cloudinit_config = generate_cloudinit_config({
         "hostname": args.hostname,
         "admin_username": args.admin_username,
         "admin_password": args.admin_password,
         "ssh_keys": args.ssh_key,
         "encryption_password": args.encryption_password,
+        "disk_serial": args.disk_serial
     })
 
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
 
-    cloud_init_filepath = Path(f"{BUILD_DIR}/cloud-init.yaml")
-
-    with open(cloud_init_filepath, "w+") as f:
-        f.write(cloud_init_file)
-
     build_iso(
-        str(cloud_init_filepath.absolute()),
+        cloudinit_config,
         work_dir=str(BUILD_DIR.absolute())
     )
 

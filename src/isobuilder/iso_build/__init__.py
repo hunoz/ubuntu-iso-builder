@@ -12,6 +12,8 @@ import yaml
 from pathlib import Path
 from typing import Dict, Any
 
+from isobuilder.cloud_init import render_cloudinit_config
+
 try:
     import pycdlib
 except ImportError:
@@ -121,24 +123,20 @@ class CrossPlatformISOBuilder:
             print(f"❌ Extraction failed: {e}")
             return False
 
-    def create_autoinstall_config(self, config_content: str) -> tuple:
+    def create_autoinstall_config(self, config: dict[str, Any]) -> tuple:
         """Create autoinstall configuration from pre-rendered config string"""
         print("📝 Creating autoinstall configuration...")
 
         # Parse just to extract hostname for meta-data
-        config_yaml = config_content
-        if config_content.startswith('#cloud-config'):
-            config_yaml = config_content.replace('#cloud-config\n', '', 1)
-        config_dict = yaml.safe_load(config_yaml)
-        hostname = config_dict['autoinstall']['identity']['hostname']
+        hostname = config['autoinstall']['identity']['hostname']
+
+        dump = render_cloudinit_config(config)
 
         # Method 1: Create autoinstall.yaml at ISO root (preferred method for Ubuntu Server)
         # Write the config content directly without re-parsing/re-dumping
         autoinstall_file = self.extract_dir / "autoinstall.yaml"
         with open(autoinstall_file, 'w') as f:
-            if not config_content.startswith('#cloud-config'):
-                f.write("#cloud-config\n")
-            f.write(config_content)
+            f.write(dump)
 
         # Method 2: Create nocloud datasource files for compatibility
         nocloud_dir = self.extract_dir / "nocloud"
@@ -147,9 +145,7 @@ class CrossPlatformISOBuilder:
         # Write user-data (preserve original formatting)
         user_data_file = nocloud_dir / "user-data"
         with open(user_data_file, 'w') as f:
-            if not config_content.startswith('#cloud-config'):
-                f.write("#cloud-config\n")
-            f.write(config_content)
+            f.write(dump)
 
         # Write meta-data
         meta_data_file = nocloud_dir / "meta-data"
@@ -164,7 +160,7 @@ class CrossPlatformISOBuilder:
             f.write("#cloud-config\n{}\n")
 
         print("✅ Configuration created")
-        return config_content, meta_data
+        return config, meta_data
 
     def modify_grub_config(self) -> bool:
         """Modify GRUB configuration to enable autoinstall"""
@@ -185,8 +181,9 @@ class CrossPlatformISOBuilder:
             shutil.copy(grub_cfg, str(grub_cfg) + ".backup")
 
             # Add autoinstall parameter
-            # The 'autoinstall' keyword triggers automated installation
-            # Ubuntu Server will look for /cdrom/autoinstall.yaml automatically
+            # For autoinstall to work, we only need the 'autoinstall' keyword
+            # The installer will automatically look for autoinstall.yaml at ISO root
+            # Keep it simple to avoid boot issues
             content = content.replace('---', 'autoinstall ---')
 
             # Reduce timeout
@@ -285,7 +282,7 @@ class CrossPlatformISOBuilder:
             print(f"❌ ISO build failed: {e.stderr.decode()}")
             return False
 
-    def build(self, config: str = None) -> bool:
+    def build(self, config: dict[str, Any] = None) -> bool:
         """Run the complete build process"""
         print("=" * 60)
         print("Ubuntu Cloud-Init Autoinstall ISO Builder")
@@ -319,7 +316,7 @@ class CrossPlatformISOBuilder:
 
 
 def build_iso(
-        cloud_init_config_file: str,
+        cloud_init_config: dict[str, Any],
         ubuntu_version: str = "24.04.3",
         work_dir: str = "./build",
 ) -> bool:
@@ -329,9 +326,7 @@ def build_iso(
         work_dir=work_dir
     )
 
-    config = load_config_from_file(cloud_init_config_file)
-
     # Build ISO
-    success = builder.build(config)
+    success = builder.build(cloud_init_config)
 
     return success
