@@ -10,7 +10,7 @@ import urllib.request
 import shutil
 import yaml
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Literal
 
 from isobuilder.cloud_init import render_cloudinit_config
 
@@ -61,10 +61,10 @@ def check_dependencies() -> bool:
 class CrossPlatformISOBuilder:
     """Pure Python ISO builder that works on any OS"""
 
-    def __init__(self, ubuntu_version: str = "24.04", work_dir: str = "./ubuntu-autoinstall"):
+    def __init__(self, ubuntu_version: str = "24.04", type: Literal["server", "desktop"] = "server", work_dir: str = "./ubuntu-autoinstall"):
         self.ubuntu_version = ubuntu_version
         self.work_dir = Path(work_dir)
-        self.iso_name = f"ubuntu-{ubuntu_version}-live-server-amd64.iso"
+        self.iso_name = f"ubuntu-{ubuntu_version}-{'live-server' if type == 'server' else 'desktop'}-amd64.iso"
         self.iso_url = f"https://releases.ubuntu.com/{ubuntu_version}/{self.iso_name}"
         self.source_iso = self.work_dir / self.iso_name
         self.extract_dir = self.work_dir / "source-files"
@@ -128,7 +128,7 @@ class CrossPlatformISOBuilder:
         print("📝 Creating autoinstall configuration...")
 
         # Parse just to extract hostname for meta-data
-        hostname = config['autoinstall']['identity']['hostname']
+        hostname = config['autoinstall']['user-data']['hostname']
 
         dump = render_cloudinit_config(config)
 
@@ -318,11 +318,13 @@ class CrossPlatformISOBuilder:
 def build_iso(
         cloud_init_config: dict[str, Any],
         ubuntu_version: str = "24.04.3",
+        ubuntu_type: Literal["server", "desktop"] = "server",
         work_dir: str = "./build",
 ) -> bool:
     # Create builder
     builder = CrossPlatformISOBuilder(
         ubuntu_version=ubuntu_version,
+        type=ubuntu_type,
         work_dir=work_dir
     )
 

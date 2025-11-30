@@ -1,4 +1,5 @@
 import argparse
+from typing import Literal
 
 from isobuilder.cloud_init import generate_cloudinit_config
 from isobuilder.iso_build import build_iso
@@ -13,14 +14,14 @@ parser.add_argument(
 
 parser.add_argument(
     "--admin-username", "-a",
-    required=True,
+    required=False,
     default="localadmin",
     help="Username that the default admin user will have"
 )
 
 parser.add_argument(
     "--admin-password", "-p",
-    required=True,
+    required=False,
     default="password",
     help="Password that the default admin user will have"
 )
@@ -34,9 +35,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--encryption-password", "-e",
-    required=True,
-    help="The password used to encrypt the OS volume",
+    "--type", "-t",
+    required=False,
+    default="server",
+    choices=["server", "desktop"],
+    help="The type of ISO to generate",
 )
 
 parser.add_argument(
@@ -53,7 +56,6 @@ def main():
         "admin_username": args.admin_username,
         "admin_password": args.admin_password,
         "ssh_keys": args.ssh_key,
-        "encryption_password": args.encryption_password,
         "disk_serial": args.disk_serial
     })
 
@@ -61,6 +63,7 @@ def main():
 
     build_iso(
         cloudinit_config,
+        ubuntu_type=args.type,
         work_dir=str(BUILD_DIR.absolute())
     )
 

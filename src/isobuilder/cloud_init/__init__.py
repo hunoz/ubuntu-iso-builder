@@ -2,7 +2,7 @@ from typing import TypedDict, Any
 
 import yaml
 
-from isobuilder.cloud_init.constants import FIRST_BOOT_COMMANDS, USERPROFILE_COMMANDS
+from isobuilder.cloud_init.constants import FIRST_BOOT_COMMANDS, USERPROFILE_COMMANDS, DOCKER_COMMANDS, NVIDIA_COMMANDS
 from isobuilder.utils.password import hash_password
 
 class CustomDumper(yaml.Dumper):
@@ -25,7 +25,6 @@ class CloudInitContext(TypedDict):
     admin_username: str
     admin_password: str
     ssh_keys: list[str]
-    encryption_password: str
     disk_serial: str
 
 def render_cloudinit_config(config: dict[str, Any]) -> str:
@@ -37,7 +36,6 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
     # TODO: Add NVIDIA drivers
     # TODO: Check if drives are raided and if not, raid them. Otherwise, mount the array
     # TODO: Stand up the Docker containers
-    encryption_password = context['encryption_password']
     return {
         'autoinstall': {
             'version': 1,
@@ -46,10 +44,20 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
             'keyboard': {
                 'layout': 'us',
             },
-            'identity': {
-                'hostname': context['hostname'],
-                'username': context['admin_username'],
-                'password': hash_password(context['admin_password']),
+            "user-data": {
+                "hostname": context['hostname'],
+                "users": [
+                    {
+                        "name": context['admin_username'],
+                        "primary_group": context['admin_username'],
+                        "groups": ["sudo"],
+                        "passwd": hash_password(context['admin_password']),
+                        "lock_passwd": False,
+                        "ssh_authorized_keys": context['ssh_keys'],
+                        "sudo": "ALL=(ALL) NOPASSWD:ALL",
+                        "shell": "/bin/bash",
+                    },
+                ],
             },
             'ssh': {
                 'install-server': True,
@@ -74,8 +82,15 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
                 'htop',
                 'net-tools',
                 'mdadm',
+                'ca-certificates',
+                'ubuntu-drivers-common',
+                'build-essential',
+                'dkms',
+                'linux-headers-generic',
             ],
             'late-commands': [
+                *DOCKER_COMMANDS,
+                *NVIDIA_COMMANDS,
                 *[s.replace("{{ admin_username }}", context['admin_username']) for s in FIRST_BOOT_COMMANDS],
                 *[s.replace("{{ admin_username }}", context['admin_username']) for s in USERPROFILE_COMMANDS],
             ],
