@@ -37,56 +37,9 @@ EOF
 
 FIRST_BOOT_COMMANDS = [
     'curtin in-target -- mkdir -p /opt/post-install',
-    '''curtin in-target -- sh -c "cat > /opt/post-install/first-boot.sh << 'FIRSTBOOT'
-#!/bin/bash
-# First boot script
-echo 'Running first boot configuration...' >> /var/log/first-boot.log
-
-# Fix ownership of user home directory
-echo 'Fixing ownership of user home directory...' >> /var/log/first-boot.log
-chown -R {{ admin_username }}:{{ admin_username }} /home/{{ admin_username }}
-echo 'Finished fixing ownership of user home directory.' >> /var/log/first-boot.log
-echo 'Disabling motd...' >> /var/log/first-boot.log
-chmod -x /etc/update-motd.d/*
-echo 'Finished disabling motd.' >> /var/log/first-boot.log
-echo 'Enabling landscape motd...' >> /var/log/first-boot.log
-chmod +x /etc/update-motd.d/50-landscape-sysinfo
-echo 'Finished enabling landscape motd.' >> /var/log/first-boot.log
-
-# Update packages, but sleep first to give time for drivers to configure
-echo 'Updating packages...' >> /var/log/first-boot.log
-sleep 30
-apt-get update
-apt-get upgrade -y
-echo 'Finished updating packages.' >> /var/log/first-boot.log
-
-# Disable this service after first run
-echo 'Disabling first-boot service...' >> /var/log/first-boot.log
-systemctl disable first-boot.service
-echo 'Finished disabling first-boot service.' >> /var/log/first-boot.log
-echo \\"First boot completed at \$(date)\\" >> /var/log/first-boot.log
-FIRSTBOOT
-    "
-    ''',
+    'TODO: Install the first-boot script here',
     'curtin in-target -- chmod +x /opt/post-install/first-boot.sh',
-    '''curtin in-target -- sh -c "cat > /etc/systemd/system/first-boot.service << 'SERVICE'
-[Unit]
-Description=First Boot Configuration
-After=multi-user.target
-Wants=multi-user.target
-
-[Service]
-Type=oneshot
-ExecStart=/opt/post-install/first-boot.sh
-RemainAfterExit=yes
-StandardOutput=journal+console
-StandardError=journal+console
-
-[Install]
-WantedBy=default.target
-SERVICE
-    "
-    ''',
+    'TODO: Install first boot service here',
     'curtin in-target -- systemctl enable first-boot.service',
 ]
 

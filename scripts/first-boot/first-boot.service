@@ -1,0 +1,14 @@
+[Unit]
+Description=First Boot Configuration
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/post-install/first-boot.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=default.target
