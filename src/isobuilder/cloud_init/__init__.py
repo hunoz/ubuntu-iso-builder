@@ -37,6 +37,7 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
     # TODO: Add NVIDIA drivers
     # TODO: Check if drives are raided and if not, raid them. Otherwise, mount the array
     # TODO: Stand up the Docker containers
+    encryption_password = context['encryption_password']
     return {
         'autoinstall': {
             'version': 1,
@@ -61,95 +62,11 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
             'storage': {
                 'layout': {
                     'name': 'lvm',
-                    'password': context['encryption_password'],
+                    'password': encryption_password,
+                    'match': {
+                        'serial': f"*{context['disk_serial']}*",
+                    },
                 },
-                'config': [
-                    {
-                        'type': 'disk',
-                        'id': 'disk0',
-                        'ptable': 'gpt',
-                        'wipe': 'superblock',
-                        'grub_device': True,
-                        'match': {
-                            'serial': context['disk_serial'],
-                        },
-                    },
-                    {
-                        'type': 'partition',
-                        'id': 'boot-partition',
-                        'device': 'disk0',
-                        'size': '512M',
-                        'flag': 'boot',
-                    },
-                    {
-                        'type': 'partition',
-                        'id': 'lvm-partition',
-                        'device': 'disk0',
-                        'size': -1,
-                    },
-                    {
-                        'type': 'format',
-                        'id': 'boot-fs',
-                        'volume': 'boot-partition',
-                        'fstype': 'fat32',
-                    },
-                    {
-                        'type': 'dm_crypt',
-                        'id': 'dmcrypt0',
-                        'volume': 'lvm-partition',
-                        'key': context['encryption_password'],
-                    },
-                    {
-                        'type': 'lvm_volgroup',
-                        'id': 'vg0',
-                        'name': 'ubuntu-vg',
-                        'devices': ['dmcrypt0'],
-                    },
-                    {
-                        'type': 'lvm_partition',
-                        'id': 'lv-swap',
-                        'volgroup': 'vg0',
-                        'name': 'swap',
-                        'size': '8G',
-                    },
-                    {
-                        'type': 'lvm_partition',
-                        'id': 'lv-root',
-                        'volgroup': 'vg0',
-                        'name': 'root',
-                        'size': -1,
-                    },
-                    {
-                        'type': 'format',
-                        'id': 'swap-fs',
-                        'volume': 'lv-swap',
-                        'fstype': 'swap',
-                    },
-                    {
-                        'type': 'format',
-                        'id': 'root-fs',
-                        'volume': 'lv-root',
-                        'fstype': 'ext4',
-                    },
-                    {
-                        'type': 'mount',
-                        'id': 'mount-boot',
-                        'device': 'boot-fs',
-                        'path': '/boot/efi',
-                    },
-                    {
-                        'type': 'mount',
-                        'id': 'mount-swap',
-                        'device': 'swap-fs',
-                        'path': 'none',
-                    },
-                    {
-                        'type': 'mount',
-                        'id': 'mount-root',
-                        'device': 'root-fs',
-                        'path': '/',
-                    },
-                ],
             },
             'packages': [
                 'vim',
@@ -161,16 +78,16 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
             ],
             'late-commands': [
                 'curtin in-target -- mkdir -p /root/.luks',
-                'curtin in-target -- dd if=/dev/urandom of=/root/.luks/boot_os.keyfile bs=4096 count=1',
-                'curtin in-target -- chmod 000 /root/.luks/boot_os.keyfile',
+                'curtin in-target -- dd if=/dev/urandom of=/root/.luks/boot_os.keyfile bs=1024 count=4',
+                'curtin in-target -- chmod 0400 /root/.luks/boot_os.keyfile',
+                f"curtin in-target -- sh -c 'echo \"{encryption_password}\" > /tmp/keyfile'",
+                f"curtin in-target -- sh -c 'cryptsetup luksAddKey --key-file=/tmp/keyfile $(blkid -t TYPE=crypto_LUKS -o device | head -n1) /root/.luks/boot_os.keyfile'"
+                "curtin in-target -- rm -f /tmp/keyfile",
+                "curtin in-target -- sed -i 's|none|/root/.luks/boot_os.keyfile|' /etc/crypttab"
                 'curtin in-target -- chmod -R 700 /root/.luks',
-                f"curtin in-target -- sh -c 'echo \"{context['encryption_password']}\" | cryptsetup luksAddKey $(blkid -t TYPE=crypto_LUKS -o device | head -n1) /root/.luks/boot_os.keyfile'",
-                "curtin in-target -- sh -c 'CRYPT_UUID=$(blkid -s UUID -o value /dev/disk/by-id/dm-uuid-*); sed -i \"s|none|/root/.luks/boot_os.keyfile|\" /etc/crypttab",
-                "curtin in-target -- sh -c 'echo \"KEYFILE_PATTERN=/root/.luks/*.keyfile\" >> /etc/cryptsetup-initramfs/conf-hook'",
-                "curtin in-target -- sh -c 'echo \"UMASK=0077\" >> /etc/initramfs-tools/initramfs.conf'",
                 'curtin in-target -- update-initramfs -u -k all',
-                *FIRST_BOOT_COMMANDS,
-                *USERPROFILE_COMMANDS,
+                *[s.replace("{{ admin_username }}", context['admin_username']) for s in FIRST_BOOT_COMMANDS],
+                *[s.replace("{{ admin_username }}", context['admin_username']) for s in USERPROFILE_COMMANDS],
             ],
             'shutdown': 'reboot',
         },

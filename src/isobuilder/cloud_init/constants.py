@@ -1,10 +1,14 @@
 from typing import Any, TypedDict
 
 FIRST_BOOT_COMMANDS = [
+    'curtin in-target -- mkdir -p /opt/post-install',
     '''cat > /target/opt/post-install/first-boot.sh << 'FIRSTBOOT'
 #!/bin/bash
 # First boot script
 echo "Running first boot configuration..."
+
+# Fix ownership of user home directory
+chown -R {{ admin_username }}:{{ admin_username }} /home/{{ admin_username }}
 
 # Example: Update system
 apt-get update
@@ -37,6 +41,7 @@ SERVICE
 ]
 
 USERPROFILE_COMMANDS = [
+    'curtin in-target -- mkdir -p /home/{{ admin_username }}',
     '''cat >> /target/home/{{ admin_username }}/.bashrc << 'BASHRC'
 # Custom bash configuration
 export EDITOR=vim
@@ -66,5 +71,4 @@ export HISTSIZE=10000
 export HISTFILESIZE=20000
 PROFILE
         ''',
-    'curtin in-target -- chown -R {{ admin_username }}:{{ admin_username }} /home/{{ admin_username }}',
 ]
