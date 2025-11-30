@@ -62,7 +62,6 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
             'storage': {
                 'layout': {
                     'name': 'lvm',
-                    'password': encryption_password,
                     'match': {
                         'serial': f"*{context['disk_serial']}*",
                     },
@@ -77,15 +76,6 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
                 'mdadm',
             ],
             'late-commands': [
-                'curtin in-target -- mkdir -p /root/.luks',
-                'curtin in-target -- dd if=/dev/urandom of=/root/.luks/boot_os.keyfile bs=1024 count=4',
-                'curtin in-target -- chmod 0400 /root/.luks/boot_os.keyfile',
-                f"curtin in-target -- sh -c 'echo \"{encryption_password}\" > /tmp/keyfile'",
-                f"curtin in-target -- sh -c 'cryptsetup luksAddKey --key-file=/tmp/keyfile $(blkid -t TYPE=crypto_LUKS -o device | head -n1) /root/.luks/boot_os.keyfile'"
-                "curtin in-target -- rm -f /tmp/keyfile",
-                "curtin in-target -- sed -i 's|none|/root/.luks/boot_os.keyfile|' /etc/crypttab"
-                'curtin in-target -- chmod -R 700 /root/.luks',
-                'curtin in-target -- update-initramfs -u -k all',
                 *[s.replace("{{ admin_username }}", context['admin_username']) for s in FIRST_BOOT_COMMANDS],
                 *[s.replace("{{ admin_username }}", context['admin_username']) for s in USERPROFILE_COMMANDS],
             ],
