@@ -48,6 +48,18 @@ parser.add_argument(
     help="The serial number of the disk to use for the OS",
 )
 
+parser.add_argument(
+    "--plex-claim", "-c",
+    required=True,
+    help="The claim token for the Plex Media Server",
+)
+
+parser.add_argument(
+    "--cloudclared-token", "-t",
+    required=True,
+    help="The cloudclared token for the ISO",
+)
+
 def main():
     args = parser.parse_args()
 
@@ -56,7 +68,9 @@ def main():
         "admin_username": args.admin_username,
         "admin_password": args.admin_password,
         "ssh_keys": args.ssh_key,
-        "disk_serial": args.disk_serial
+        "disk_serial": args.disk_serial,
+        "plex_claim": args.plex_claim,
+        "cloudflared_token": args.cloudclared_token,
     })
 
     BUILD_DIR.mkdir(parents=True, exist_ok=True)

@@ -26,6 +26,8 @@ class CloudInitContext(TypedDict):
     admin_password: str
     ssh_keys: list[str]
     disk_serial: str
+    plex_claim: str
+    cloudflared_token: str
 
 def render_cloudinit_config(config: dict[str, Any]) -> str:
     dump = yaml.dump(config, Dumper=CustomDumper, default_flow_style=False, sort_keys=False, width=float('inf'))
@@ -47,6 +49,12 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
             "user-data": {
                 "hostname": context['hostname'],
                 "users": [
+                    {
+                        "name": "root",
+                        "passwd": hash_password(context['admin_password']),
+                        "lock_passwd": False,
+                        "ssh_authorized_keys": context['ssh_keys'],
+                    },
                     {
                         "name": context['admin_username'],
                         "primary_group": context['admin_username'],
@@ -89,6 +97,9 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
                 'linux-headers-generic',
             ],
             'late-commands': [
+                f"curtin in-target -- mkdir /opt/post-install",
+                f"curtin in-target -- echo '{context['plex_claim']}' > /opt/post-install/plex-claim",
+                f"curtin in-target -- echo '{context['cloudflared_token']}' > /opt/post-install/cloudflared-token",
                 *DOCKER_COMMANDS,
                 *NVIDIA_COMMANDS,
                 *[s.replace("{{ admin_username }}", context['admin_username']) for s in FIRST_BOOT_COMMANDS],

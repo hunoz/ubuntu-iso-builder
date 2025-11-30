@@ -37,9 +37,9 @@ EOF
 
 FIRST_BOOT_COMMANDS = [
     'curtin in-target -- mkdir -p /opt/post-install',
-    'TODO: Install the first-boot script here',
+    'curtin in-target -- curl https://raw.githubusercontent.com/hunoz/ubuntu-iso-builder/refs/heads/main/files/first-boot/first-boot.sh -o /opt/post-install/first-boot.sh',
     'curtin in-target -- chmod +x /opt/post-install/first-boot.sh',
-    'TODO: Install first boot service here',
+    'curtin in-target -- curl https://raw.githubusercontent.com/hunoz/ubuntu-iso-builder/refs/heads/main/files/first-boot/first-boot.service -o /etc/systemd/system/first-boot.service',
     'curtin in-target -- systemctl enable first-boot.service',
 ]
 

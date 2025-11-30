@@ -27,8 +27,12 @@ apt-get upgrade -y
 echo 'Finished updating packages.'
 
 echo "Setting up RAID"
-curl https://github.com/hunoz/ubuntu-iso-builder/scripts/first-boot/raid/raid-setup.sh | bash
+curl https://raw.githubusercontent.com/hunoz/ubuntu-iso-builder/refs/heads/main/files/first-boot/raid/setup-raid.sh | bash
 echo "RAID setup complete"
+
+echo "Setting up Docker"
+curl https://raw.githubusercontent.com/hunoz/ubuntu-iso-builder/refs/heads/main/files/docker/configure-docker.sh | bash
+echo "Docker setup complete"
 
 # Disable this service after first run
 echo 'Disabling first-boot service...'
