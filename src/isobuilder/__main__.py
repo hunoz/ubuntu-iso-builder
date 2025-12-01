@@ -55,9 +55,9 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--cloudclared-token", "-t",
+    "--cloudflared-token", "-ct",
     required=True,
-    help="The cloudclared token for the ISO",
+    help="The cloudflared token for the ISO",
 )
 
 def main():

@@ -100,6 +100,8 @@ def generate_cloudinit_config(context: CloudInitContext) -> dict[str, Any]:
                 f"curtin in-target -- mkdir /opt/post-install",
                 f"curtin in-target -- echo '{context['plex_claim']}' > /opt/post-install/plex-claim",
                 f"curtin in-target -- echo '{context['cloudflared_token']}' > /opt/post-install/cloudflared-token",
+                f"curtin in-target -- sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=|GRUB_CMDLINE_LINUX_DEFAULT=\"nosplash usb-storage.quirks=2109:0715:j\" /etc/default/grub",
+                f"curtin in-target -- update-grub",
                 *DOCKER_COMMANDS,
                 *NVIDIA_COMMANDS,
                 *[s.replace("{{ admin_username }}", context['admin_username']) for s in FIRST_BOOT_COMMANDS],
