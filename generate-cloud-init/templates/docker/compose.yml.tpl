@@ -1,3 +1,4 @@
+{{ define "compose.yml" }}
 ---
 
 services:
@@ -126,3 +127,4 @@ volumes:
         external: true
     television:
         external: true
+{{ end }}
