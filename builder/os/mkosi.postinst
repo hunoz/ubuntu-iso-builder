@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -e
+
+# This script runs after the image is built but before it's finalized
+# It's used to configure the system
+
+echo "Running post-installation configuration..."
+
+# Make scripts executable
+chmod +x /usr/local/bin/setup-raid
+chmod +x /usr/local/bin/configure-docker
+
+# Enable systemd services
+systemctl enable docker.service
+systemctl enable containers.service
+systemctl enable ssh.service
+
+# Create postinst directory if it doesn't exist
+mkdir -p /opt/postinstall
+chown -R root:root /opt/containers
+chmod 700 /opt/containers
+
+# Create containers directory if it doesn't exist
+mkdir -p /opt/containers
+chmod +x /opt/postinstall/first-boot.sh
+
+# Ensure proper permissions
+chown -R root:root /opt/containers
+chmod 755 /opt/containers
+
+echo "Post-installation configuration complete"

@@ -5,14 +5,18 @@ import (
 	"github.com/spf13/viper"
 )
 
+type FlagKeyInterface interface {
+	GetAdd() func(cmd *cobra.Command)
+}
+
 type FlagKey[T any] struct {
 	Long        string
 	Short       string
 	Description string
-	Add         AddFlagFunc
-	Retrieve    RetrieveValueFunc[T]
+	Add         func(cmd *cobra.Command)
+	Retrieve    func(v *viper.Viper) T
 }
 
-type RetrieveValueFunc[T any] = func(v *viper.Viper) T
-
-type AddFlagFunc = func(cmd *cobra.Command)
+func (f FlagKey[T]) GetAdd() func(cmd *cobra.Command) {
+	return f.Add
+}

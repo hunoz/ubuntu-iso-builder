@@ -1,0 +1,16 @@
+[Unit]
+Description=Automatic Image Installer
+After=multi-user.target
+ConditionPathExists=/root/install-image.sh
+
+[Service]
+Type=oneshot
+ExecStart=/root/install-image.sh
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+#!/bin/bash
+set -e
+
+echo "Configuring installer..."
+
+# Make installer executable
+chmod +x /root/install-image.sh
+
+# Enable auto-installer service
+systemctl enable auto-installer.service
+
+# Configure auto-login to root on tty1
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+EOF
+
+# Set root password for debugging (optional)
+echo "root:installer" | chpasswd
+
+# Disable other gettys to focus on tty1
+systemctl disable getty@tty2.service 2>/dev/null || true
+systemctl disable getty@tty3.service 2>/dev/null || true
+
+echo "Installer configuration complete"
