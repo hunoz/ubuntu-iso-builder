@@ -7,6 +7,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+
+	log "github.com/sirupsen/logrus"
 )
 
 //go:embed installer
@@ -17,6 +20,11 @@ var osFs embed.FS
 
 //go:embed templates
 var templateFs embed.FS
+
+var executableMkosiFiles = []string{
+	"os/mkosi.postinst",
+	"os/mkosi.prepare.chroot",
+}
 
 func copyFsToTempDir(fileSystem embed.FS, path string) (tempDir string, err error) {
 	tempDir, err = os.MkdirTemp("", path)
@@ -64,6 +72,14 @@ func copyFsToTempDir(fileSystem embed.FS, path string) (tempDir string, err erro
 			_, err = io.Copy(dstFile, srcFile)
 			if err != nil {
 				return fmt.Errorf("error copying file %s to %s: %w", path, targetPath, err)
+			}
+
+			log.Debugf("Processing file %s to %s\n", path, targetPath)
+
+			if slices.Contains(executableMkosiFiles, path) {
+				if err = os.Chmod(targetPath, 0755); err != nil {
+					return fmt.Errorf("error chmoding executable file %s: %w", targetPath, err)
+				}
 			}
 			return nil
 		}

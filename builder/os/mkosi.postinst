@@ -6,26 +6,33 @@ set -e
 
 echo "Running post-installation configuration..."
 
-# Make scripts executable
-chmod +x /usr/local/bin/setup-raid
-chmod +x /usr/local/bin/configure-docker
+# Prepare for Docker installation
+mkdir -p /etc/apt/sources.list.d
+install -m 0755 -d /etc/apt/keyrings
 
-# Enable systemd services
-systemctl enable docker.service
-systemctl enable containers.service
-systemctl enable ssh.service
+# Download and add Docker's official GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install docker
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # Create postinst directory if it doesn't exist
 mkdir -p /opt/postinstall
-chown -R root:root /opt/containers
-chmod 700 /opt/containers
+chown -R 0:0 /opt/postinstall
+chmod 700 /opt/postinstall
 
 # Create containers directory if it doesn't exist
 mkdir -p /opt/containers
-chmod +x /opt/postinstall/first-boot.sh
 
 # Ensure proper permissions
-chown -R root:root /opt/containers
+chown -R 0:0 /opt/containers
 chmod 755 /opt/containers
 
 echo "Post-installation configuration complete"

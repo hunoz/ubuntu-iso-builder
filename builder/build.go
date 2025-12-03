@@ -34,17 +34,23 @@ type Templates struct {
 	AuthorizedKeys  bytes.Buffer
 }
 
-var dockerPath = []string{"os", "mkosi.extra", "opt", "containers"}
+var dockerPath = []string{"mkosi.extra", "opt", "containers"}
 
 const dockerComposeFilename = "compose.yml"
 
-var postInstallPath = []string{"os", "mkosi.extra", "opt", "postinstall"}
+var postInstallPath = []string{"mkosi.extra", "opt", "postinstall"}
 
 const firstBootScriptFilename = "first-boot.sh"
 
-var hostnamePath = []string{"os", "mkhost.extra", "etc"}
+var hostnamePath = []string{"mkhost.extra", "etc"}
 
 const hostnameFilename = "hostname"
+
+var executableFiles = []string{
+	joinPath([]string{"mkosi.skeleton", "usr", "local", "bin", "setup-raid"}),
+	joinPath([]string{"mkosi.skeleton", "usr", "local", "bin", "configure-docker"}),
+	joinPath([]string{"mkosi.extra", "opt", "postinstall", "first-boot.sh"}),
+}
 
 func joinPath(paths []string) string {
 	return strings.Join(paths, string(os.PathSeparator))
@@ -106,9 +112,10 @@ func makeFiles(osDir, adminUsername string, templates *Templates) (err error) {
 	hostnameDir := filepath.Dir(joinPath(hostnameFullPath))
 
 	sshAuthorizedKeysFullPath := []string{osDir}
-	sshAuthorizedKeysFullPath = append(sshAuthorizedKeysFullPath, "os", "mkosi.extra", "home", adminUsername, ".ssh", "authorized_keys.tpl")
+	sshAuthorizedKeysFullPath = append(sshAuthorizedKeysFullPath, "mkosi.extra", "home", adminUsername, ".ssh", "authorized_keys")
 	sshAuthorizedKeysDir := filepath.Dir(joinPath(sshAuthorizedKeysFullPath))
 
+	log.Debugf("Creating compose file at %s", joinPath(composeFullPath))
 	if e := os.MkdirAll(composeDir, 0755); e != nil {
 		err = e
 		return
@@ -127,6 +134,7 @@ func makeFiles(osDir, adminUsername string, templates *Templates) (err error) {
 		}
 	}
 
+	log.Debugf("Creating first-boot script file at %s", joinPath(firstBootScriptFullPath))
 	if e := os.MkdirAll(firstBootScriptDir, 0755); e != nil {
 		err = e
 		return
@@ -144,6 +152,7 @@ func makeFiles(osDir, adminUsername string, templates *Templates) (err error) {
 		}(file)
 	}
 
+	log.Debugf("Creating hostname file at %s", joinPath(hostnameFullPath))
 	if e := os.MkdirAll(hostnameDir, 0755); e != nil {
 		err = e
 		return
@@ -161,6 +170,7 @@ func makeFiles(osDir, adminUsername string, templates *Templates) (err error) {
 		}(file)
 	}
 
+	log.Debugf("Creating ssh authorized_keys file at %s", joinPath(sshAuthorizedKeysFullPath))
 	if e := os.MkdirAll(sshAuthorizedKeysDir, 0755); e != nil {
 		err = e
 		return
@@ -193,7 +203,7 @@ func createInstallerDir() (dir string, err error) {
 
 func runMkosiBuild() (output string, err error) {
 	cmd := exec.Command("mkosi", "build")
-	stdout, err := cmd.StdoutPipe()
+	_, err = cmd.StdoutPipe()
 	if err != nil {
 		return
 	}
@@ -208,18 +218,10 @@ func runMkosiBuild() (output string, err error) {
 	}
 
 	go func() {
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			output += scanner.Text() + "\n"
-			log.Debugf("mkosi build stdout: %s", scanner.Text())
-		}
-	}()
-
-	go func() {
 		scanner := bufio.NewScanner(stderr)
 		output += scanner.Text() + "\n"
 		for scanner.Scan() {
-			log.Debugf("mkosi build stderr: %s", scanner.Text())
+			log.Debugf("mkosi build output: %s", scanner.Text())
 		}
 	}()
 
@@ -241,9 +243,17 @@ func buildOs(osDir string, ctx *BuildContext) (imgFile string, err error) {
 		return
 	}
 
+	log.Debugf("Changing directory to %s", osDir)
 	if err = os.Chdir(osDir); err != nil {
 		err = fmt.Errorf("error changing to directory %s: %s", osDir, err.Error())
 		return
+	}
+
+	for _, file := range executableFiles {
+		if err = os.Chmod(file, 0755); err != nil {
+			err = fmt.Errorf("error making executable file %s: %s", file, err.Error())
+			return
+		}
 	}
 
 	if output, e := runMkosiBuild(); e != nil {
@@ -258,6 +268,7 @@ func buildOs(osDir string, ctx *BuildContext) (imgFile string, err error) {
 
 func buildInstaller(installerDir string) (installerFile string, err error) {
 
+	log.Debugf("Changing directory to %s", installerDir)
 	if err = os.Chdir(installerDir); err != nil {
 		return
 	}
@@ -315,6 +326,7 @@ func Build(ctx *BuildContext) (installerFile string, err error) {
 	if err != nil {
 		return
 	}
+	osDir = joinPath([]string{osDir, "os"})
 	log.Debugln("OS directory created")
 
 	//defer func(path string) {
@@ -331,6 +343,7 @@ func Build(ctx *BuildContext) (installerFile string, err error) {
 	if err != nil {
 		return
 	}
+	installerDir = joinPath([]string{installerDir, "installer"})
 	log.Debugln("Installer directory created")
 
 	log.Infoln("Building OS")

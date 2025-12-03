@@ -35,7 +35,7 @@ echo "Setting up raid"
 echo "Raid setup is complete"
 
 # Disable this service after first run
-echo 'Disabling first-boot service...'
-systemctl disable first-boot.service
-echo 'Finished disabling first-boot service.'
+echo "Creating systemd signal file to not run again"
+echo "yes" > /var/lib/first-boot-complete
+echo "Signal file created"
 echo "First boot completed at $(date)"

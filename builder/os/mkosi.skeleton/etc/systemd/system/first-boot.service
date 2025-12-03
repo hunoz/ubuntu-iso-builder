@@ -2,6 +2,7 @@
 Description=First Boot Configuration
 After=multi-user.target
 Wants=multi-user.target
+ConditionPathExists=!/var/lib/first-boot-complete
 
 [Service]
 Type=oneshot

@@ -90,6 +90,7 @@ var FlagKeys = struct {
 		Description: "Serial of the disk where the OS will be installed",
 		Add: func(cmd *cobra.Command) {
 			cmd.Flags().StringP("disk-serial", "s", "", "Serial of the disk where the OS will be installed")
+			_ = cmd.MarkFlagRequired("disk-serial")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("disk-serial")
@@ -101,6 +102,7 @@ var FlagKeys = struct {
 		Description: "Plex claim that will be used to activate Plex",
 		Add: func(cmd *cobra.Command) {
 			cmd.Flags().StringP("plex-claim", "c", "", "Plex claim that will be used to activate Plex")
+			_ = cmd.MarkFlagRequired("plex-claim")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("plex-claim")
@@ -112,6 +114,7 @@ var FlagKeys = struct {
 		Description: "Cloudflared token that will be used to activate Cloudflared",
 		Add: func(cmd *cobra.Command) {
 			cmd.Flags().StringP("cloudflared-token", "d", "", "Cloudflared token that will be used to activate Cloudflared")
+			_ = cmd.MarkFlagRequired("cloudflared-token")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("cloudflared-token")
