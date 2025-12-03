@@ -217,15 +217,20 @@ func runMkosiBuild() (output string, err error) {
 		return
 	}
 
+	lastScannerLine := ""
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		output += scanner.Text() + "\n"
 		for scanner.Scan() {
-			log.Debugf("mkosi build output: %s", scanner.Text())
+			lastScannerLine = scanner.Text()
+			log.Debugf("mkosi build output: %s", lastScannerLine)
 		}
 	}()
 
 	err = cmd.Wait()
+	if err != nil {
+		err = fmt.Errorf("mkosi build error: %s", lastScannerLine)
+	}
 
 	time.Sleep(1 * time.Second) // Give goroutines a chance to finish printing
 
