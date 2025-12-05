@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hunoz/ubuntu-iso-builder/cmd/utils"
+	"github.com/hunoz/ubuntu-iso-builder/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -14,7 +14,7 @@ var FlagKeys = struct {
 	AdminUsername    utils.FlagKey[string]
 	AdminPassword    utils.FlagKey[string]
 	RootPassword     utils.FlagKey[string]
-	SSHKey           utils.FlagKey[[]string]
+	SSHKeys          utils.FlagKey[[]string]
 	DiskSerial       utils.FlagKey[string]
 	PlexClaim        utils.FlagKey[string]
 	CloudflaredToken utils.FlagKey[string]
@@ -23,9 +23,9 @@ var FlagKeys = struct {
 	Hostname: utils.FlagKey[string]{
 		Long:        "hostname",
 		Short:       "n",
-		Description: "Hostname that the machine using the ISO will have",
+		Description: "Hostname that the machine will have",
 		Add: func(cmd *cobra.Command) {
-			cmd.Flags().StringP("hostname", "n", "", "Hostname that the machine using the ISO will have")
+			cmd.Flags().StringP("hostname", "n", "", "Hostname that the machine will have")
 			_ = cmd.MarkFlagRequired("hostname")
 		},
 		Retrieve: func(v *viper.Viper) string {
@@ -35,9 +35,9 @@ var FlagKeys = struct {
 	AdminUsername: utils.FlagKey[string]{
 		Long:        "admin-username",
 		Short:       "u",
-		Description: "Username that the machine using the ISO will have",
+		Description: "Username of the admin user in the OS. Example: localadmin",
 		Add: func(cmd *cobra.Command) {
-			cmd.Flags().StringP("admin-username", "u", "localadmin", "Username that the machine using the ISO will have")
+			cmd.Flags().StringP("admin-username", "u", "localadmin", "Username that the machine will have")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("admin-username")
@@ -46,9 +46,9 @@ var FlagKeys = struct {
 	AdminPassword: utils.FlagKey[string]{
 		Long:        "admin-password",
 		Short:       "p",
-		Description: "Password that the admin user in the OS will have",
+		Description: "Hashed password (e.g. with mkpasswd sha-512) that the admin user will have",
 		Add: func(cmd *cobra.Command) {
-			cmd.Flags().StringP("admin-password", "p", "password", "Password that the admin user in the OS will have")
+			cmd.Flags().StringP("admin-password", "p", "password", "Hashed password (e.g. with mkpasswd sha-512) that the admin user will have")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("admin-password")
@@ -57,20 +57,20 @@ var FlagKeys = struct {
 	RootPassword: utils.FlagKey[string]{
 		Long:        "root-password",
 		Short:       "r",
-		Description: "Password that the root user in the OS will have",
+		Description: "Password that the root user will have",
 		Add: func(cmd *cobra.Command) {
-			cmd.Flags().StringP("root-password", "r", "password", "Password that the root user in the OS will have")
+			cmd.Flags().StringP("root-password", "r", "password", "Password that the root user will have")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("root-password")
 		},
 	},
-	SSHKey: utils.FlagKey[[]string]{
+	SSHKeys: utils.FlagKey[[]string]{
 		Long:        "ssh-key",
 		Short:       "k",
-		Description: "SSH key that the users configured in the OS will have",
+		Description: "SSH key that the admin user and root will have",
 		Add: func(cmd *cobra.Command) {
-			cmd.Flags().StringArrayP("ssh-key", "k", []string{}, "SSH key that the users configured in the OS will have")
+			cmd.Flags().StringArrayP("ssh-key", "k", []string{}, "SSH key that the admin user and root will have")
 		},
 		Retrieve: func(v *viper.Viper) []string {
 			return v.GetStringSlice("ssh-key")

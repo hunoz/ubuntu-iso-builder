@@ -14,6 +14,63 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type AutoInstallKeyboard struct {
+	Layout string `yaml:"layout"`
+}
+
+type User struct {
+	Name              string   `yaml:"name"`
+	Passwd            string   `yaml:"passwd"`
+	PrimaryGroup      string   `yaml:"primary_group"`
+	Groups            []string `yaml:"groups"`
+	LockPasswd        bool     `yaml:"lock_passwd"`
+	SshAuthorizedKeys []string `yaml:"ssh_authorized_keys"`
+	Sudo              string   `yaml:"sudo"`
+	Shell             string   `yaml:"shell"`
+}
+
+type UserData struct {
+	Hostname string `yaml:"hostname"`
+	Users    []User `yaml:"users"`
+}
+
+type SSH struct {
+	InstallServer  bool     `yaml:"install-server"`
+	AllowPw        bool     `yaml:"allow-pw"`
+	AuthorizedKeys []string `yaml:"authorized-keys"`
+}
+
+type StorageLayoutMatch struct {
+	Serial *string `yaml:"serial"`
+}
+
+type StorageLayout struct {
+	Name  string             `yaml:"name"`
+	Match StorageLayoutMatch `yaml:"match"`
+}
+
+type Storage struct {
+	Layout StorageLayout `yaml:"layout"`
+}
+
+type AutoInstall struct {
+	Version       int                 `yaml:"version"`
+	Timezone      string              `yaml:"timezone"`
+	Locale        string              `yaml:"locale"`
+	Keyboard      AutoInstallKeyboard `yaml:"keyboard"`
+	UserData      UserData            `yaml:"user-data"`
+	Ssh           SSH                 `yaml:"ssh"`
+	Storage       Storage             `yaml:"storage"`
+	Packages      []string            `yaml:"packages"`
+	EarlyCommands []string            `yaml:"early-commands"`
+	LateCommands  []string            `yaml:"late-commands"`
+	Shutdown      string              `yaml:"shutdown"`
+}
+
+type CloudConfig struct {
+	AutoInstall AutoInstall `yaml:"autoinstall"`
+}
+
 type CloudConfigContext struct {
 	Hostname         string
 	AdminUsername    string
@@ -25,14 +82,7 @@ type CloudConfigContext struct {
 	CloudflaredToken string
 }
 
-func hashPassword(pwd string) string {
-	return pwd
-}
-
 func getEarlyCommands(ctx CloudConfigContext) (commands []string, err error) {
-	tmpl := template.New("files")
-	eng := template.Must(tmpl.ParseFS(filesFS, "files/**/*.tpl"))
-
 	err = fs.WalkDir(filesFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -55,14 +105,19 @@ func getEarlyCommands(ctx CloudConfigContext) (commands []string, err error) {
 			}(srcFile)
 
 			pathSplit := strings.Split(path, "/")
-			pathWithoutPrefix := strings.Join(pathSplit[:len(pathSplit)-1], "/")
-			dir := filepath.Dir(path)
+			pathWithoutPrefix := "/" + strings.TrimSuffix(strings.Join(pathSplit[1:], "/"), ".tpl")
+			dir := filepath.Dir(pathWithoutPrefix)
 			baseName := pathSplit[len(pathSplit)-1]
 			var contents bytes.Buffer
 			if strings.HasSuffix(path, ".tpl") {
-				if err = eng.ExecuteTemplate(&contents, baseName, ctx); err != nil {
-					return err
+				tmpl, err := template.ParseFS(filesFS, path)
+				if err != nil {
+					return fmt.Errorf("error parsing template %s: %w", path, err)
 				}
+				if err = tmpl.ExecuteTemplate(&contents, filepath.Base(path), ctx); err != nil {
+					return fmt.Errorf("error executing template %s: %w", path, err)
+				}
+				baseName = strings.TrimSuffix(baseName, ".tpl")
 			} else {
 				if content, err := filesFS.ReadFile(path); err != nil {
 					return err
@@ -72,7 +127,7 @@ func getEarlyCommands(ctx CloudConfigContext) (commands []string, err error) {
 				}
 			}
 
-			base64Content := base64.StdEncoding.EncodeToString([]byte(strings.Replace(contents.String(), "#executable", "", 1)))
+			base64Content := base64.StdEncoding.EncodeToString([]byte(strings.Replace(contents.String(), "#executable\n", "", 1)))
 			var outputFile string
 			if baseName == "authorized_keys.tpl" {
 				outputFile = fmt.Sprintf("/home/%s/.ssh/authorized_keys", ctx.AdminUsername)
@@ -128,20 +183,18 @@ func getNvidiaCommands() []string {
 		"curtin in-target -- apt update",
 		"curtin in-target -- bash -c 'DEBIAN_FRONTEND=noninteractive ubuntu-drivers install --gpgpu'",
 		"curtin in-target -- apt update",
-		"curtin in-target -- bash -c 'DEBIAN_FRONTEND=noninteractive apt install -y nvidia-container-toolkit",
+		"curtin in-target -- bash -c 'DEBIAN_FRONTEND=noninteractive apt install -y nvidia-container-toolkit'",
 		"curtin in-target -- nvidia-ctk runtime configure --runtime=docker",
 	}
 }
 
-func getBaseAutoinstall(ctx CloudConfigContext) (autoInstall map[string]any, err error) {
-	ssh := map[string]any{
-		"install-server": true,
-	}
+func getBaseAutoinstall(ctx CloudConfigContext) (autoInstall CloudConfig, err error) {
+	ssh := SSH{InstallServer: true}
 	if len(ctx.SSHKeys) > 0 {
-		ssh["allow-pw"] = false
-		ssh["authorized-keys"] = ctx.SSHKeys
+		ssh.AllowPw = false
+		ssh.AuthorizedKeys = ctx.SSHKeys
 	} else {
-		ssh["allow-pw"] = true
+		ssh.AllowPw = true
 	}
 
 	earlyCommands, err := getEarlyCommands(ctx)
@@ -150,51 +203,44 @@ func getBaseAutoinstall(ctx CloudConfigContext) (autoInstall map[string]any, err
 	}
 
 	lateCommands := []string{
-		`curtin in-target -- sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=|GRUB_CMDLINE_LINUX_DEFAULT=\"nosplash usb-storage.quirks=2109:0715:j\" /etc/default/grub`,
+		`curtin in-target -- sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=|GRUB_CMDLINE_LINUX_DEFAULT=\"nosplash usb-storage.quirks=2109:0715:j\" /etc/default/grub'`,
 		"curtin in-target -- update-grub",
 	}
 	lateCommands = append(lateCommands, getDockerCommands()...)
 	lateCommands = append(lateCommands, getNvidiaCommands()...)
 
-	autoInstall = map[string]any{
-		"autoinstall": map[string]any{
-			"version":  1,
-			"timezone": "Etc/UTC",
-			"locale":   "en_US.UTF-8",
-			"keyboard": map[string]any{
-				"layout": "us",
-			},
-			"user-data": map[string]any{
-				"hostname": ctx.Hostname,
-				"users": []map[string]any{
+	serialMatch := fmt.Sprintf("*%s*", &ctx.DiskSerial)
+
+	autoInstall = CloudConfig{
+		AutoInstall: AutoInstall{
+			Version:  1,
+			Timezone: "Etc/UTC",
+			Locale:   "en_US.UTF-8",
+			Keyboard: AutoInstallKeyboard{Layout: "us"},
+			UserData: UserData{
+				Hostname: ctx.Hostname,
+				Users: []User{
 					{
-						"name":                "root",
-						"passwd":              hashPassword(ctx.RootPassword),
-						"lock_passwd":         false,
-						"ssh_authorized_keys": ctx.SSHKeys,
+						Name:              "root",
+						Passwd:            ctx.RootPassword,
+						LockPasswd:        false,
+						SshAuthorizedKeys: ctx.SSHKeys,
 					},
 					{
-						"name":                ctx.AdminUsername,
-						"passwd":              hashPassword(ctx.AdminPassword),
-						"primary_group":       ctx.AdminUsername,
-						"groups":              []string{"sudo"},
-						"lock_passwd":         false,
-						"ssh_authorized_keys": ctx.SSHKeys,
-						"sudo":                "ALL=(ALL) NOPASSWD:ALL",
-						"shell":               "/bin/bash",
+						Name:              ctx.AdminUsername,
+						Passwd:            ctx.AdminPassword,
+						PrimaryGroup:      ctx.AdminUsername,
+						Groups:            []string{"sudo"},
+						LockPasswd:        false,
+						SshAuthorizedKeys: ctx.SSHKeys,
+						Sudo:              "ALL=(ALL) NOPASSWD:ALL",
+						Shell:             "/bin/bash",
 					},
 				},
 			},
-			"ssh": ssh,
-			"storage": map[string]any{
-				"layout": map[string]any{
-					"name": "lvm",
-					"match": map[string]any{
-						"serial": fmt.Sprintf("*%s*", ctx.DiskSerial),
-					},
-				},
-			},
-			"packages": []string{
+			Ssh:     ssh,
+			Storage: Storage{Layout: StorageLayout{Name: "lvm", Match: StorageLayoutMatch{Serial: &serialMatch}}},
+			Packages: []string{
 				"vim",
 				"curl",
 				"git",
@@ -207,8 +253,9 @@ func getBaseAutoinstall(ctx CloudConfigContext) (autoInstall map[string]any, err
 				"dkms",
 				"linux-headers-generic",
 			},
-			"early-commands": earlyCommands,
-			"late-commands":  lateCommands,
+			EarlyCommands: earlyCommands,
+			LateCommands:  lateCommands,
+			Shutdown:      "reboot",
 		},
 	}
 
