@@ -21,12 +21,12 @@ type AutoInstallKeyboard struct {
 type User struct {
 	Name              string   `yaml:"name"`
 	Passwd            string   `yaml:"passwd"`
-	PrimaryGroup      string   `yaml:"primary_group"`
-	Groups            []string `yaml:"groups"`
-	LockPasswd        bool     `yaml:"lock_passwd"`
-	SshAuthorizedKeys []string `yaml:"ssh_authorized_keys"`
-	Sudo              string   `yaml:"sudo"`
-	Shell             string   `yaml:"shell"`
+	PrimaryGroup      string   `yaml:"primary_group,omitempty"`
+	Groups            []string `yaml:"groups,omitempty"`
+	LockPasswd        bool     `yaml:"lock_passwd,omitempty"`
+	SshAuthorizedKeys []string `yaml:"ssh_authorized_keys,omitempty"`
+	Sudo              string   `yaml:"sudo,omitempty"`
+	Shell             string   `yaml:"shell,omitempty"`
 }
 
 type UserData struct {
@@ -37,7 +37,7 @@ type UserData struct {
 type SSH struct {
 	InstallServer  bool     `yaml:"install-server"`
 	AllowPw        bool     `yaml:"allow-pw"`
-	AuthorizedKeys []string `yaml:"authorized-keys"`
+	AuthorizedKeys []string `yaml:"authorized-keys,omitempty"`
 }
 
 type StorageLayoutMatch struct {
@@ -105,7 +105,14 @@ func getEarlyCommands(ctx CloudConfigContext) (commands []string, err error) {
 			}(srcFile)
 
 			pathSplit := strings.Split(path, "/")
-			pathWithoutPrefix := "/" + strings.TrimSuffix(strings.Join(pathSplit[1:], "/"), ".tpl")
+			fmt.Printf("%#v\n", pathSplit)
+			var pathWithoutPrefix string
+			if pathSplit[0] == "files" {
+				pathWithoutPrefix = "/" + strings.TrimSuffix(strings.Join(pathSplit[1:], "/"), ".tpl")
+			} else {
+				pathWithoutPrefix = "/" + strings.TrimSuffix(strings.Join(pathSplit[:len(pathSplit)-1], "/"), ".tpl")
+			}
+			println(pathWithoutPrefix)
 			dir := filepath.Dir(pathWithoutPrefix)
 			baseName := pathSplit[len(pathSplit)-1]
 			var contents bytes.Buffer
@@ -170,8 +177,6 @@ func getEarlyCommands(ctx CloudConfigContext) (commands []string, err error) {
 func getDockerCommands() []string {
 	return []string{
 		"curtin in-target -- apt update",
-		"curtin in-target -- install -m 0755 -d /etc/apt/keyrings",
-		"curtin in-target -- curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc",
 		"curtin in-target -- chmod a+r /etc/apt/keyrings/docker.asc",
 		`curtin in-target -- bash -c 'DEBIAN_FRONTEND=noninteractive apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin'`,
 	}
@@ -209,7 +214,7 @@ func getBaseAutoinstall(ctx CloudConfigContext) (autoInstall CloudConfig, err er
 	lateCommands = append(lateCommands, getDockerCommands()...)
 	lateCommands = append(lateCommands, getNvidiaCommands()...)
 
-	serialMatch := fmt.Sprintf("*%s*", &ctx.DiskSerial)
+	serialMatch := fmt.Sprintf("*%s*", ctx.DiskSerial)
 
 	autoInstall = CloudConfig{
 		AutoInstall: AutoInstall{
