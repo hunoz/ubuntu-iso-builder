@@ -21,10 +21,9 @@ var FlagKey = struct {
 		Description: "The fully rendered cloud-config file",
 		Add: func(command *cobra.Command) {
 			command.Flags().StringP("cloud-config-file", "f", "", "Path to the cloud-config file")
-			_ = command.MarkFlagRequired("cloud-config")
 		},
 		Retrieve: func(v *viper.Viper) string {
-			return v.GetString("cloud-config")
+			return v.GetString("cloud-config-file")
 		},
 	},
 	Type: utils.FlagKey[string]{
@@ -44,8 +43,8 @@ var FlagKey = struct {
 		Description: "Output path where the ISO will be written to",
 		Add: func(cmd *cobra.Command) {
 			tmpDir := os.TempDir()
-			outputPath := filepath.Join(tmpDir, "ubuntu.iso")
-			cmd.Flags().StringP("output-path", "o", outputPath, "Output path where the cloud-config file will be written to")
+			outputPath := filepath.Join(tmpDir, "iso-builder-workspace")
+			cmd.Flags().StringP("output-path", "o", outputPath, "Output path where the created ISO will be written to")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("output-path")
@@ -54,9 +53,9 @@ var FlagKey = struct {
 	Version: utils.FlagKey[string]{
 		Long:        "version",
 		Short:       "",
-		Description: "Version of Ubuntu that will be used. Example: 24.04",
+		Description: "Version of Ubuntu that will be used. Example: 24.04.3",
 		Add: func(cmd *cobra.Command) {
-			cmd.Flags().String("version", "24.04", "Version of Ubuntu that will be used. Example: 24.04")
+			cmd.Flags().String("version", "24.04.3", "Version of Ubuntu that will be used. Example: 24.04.3")
 		},
 		Retrieve: func(v *viper.Viper) string {
 			return v.GetString("version")

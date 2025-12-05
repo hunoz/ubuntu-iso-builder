@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	generate_cloud_config "github.com/hunoz/ubuntu-iso-builder/generate-cloud-config"
 	"github.com/hunoz/ubuntu-iso-builder/utils"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -63,9 +64,9 @@ func (b *ISOBuilder) destIsoPath() string {
 func (b *ISOBuilder) checkDependencies() bool {
 	commands := []Dependency{
 		{
-			Name:         "xorisso",
+			Name:         "xorriso",
 			CheckCommand: func() bool { return commandIsInPath("xorriso") },
-			FixMessage:   "xorisso needs to be installed",
+			FixMessage:   "xorriso needs to be installed",
 		},
 		{
 			Name:         "7z",
@@ -116,19 +117,19 @@ func (b *ISOBuilder) downloadIso() bool {
 	return true
 }
 func (b *ISOBuilder) extractIso() bool {
-	fmt.Println("📦 Extracting ISO contents...")
+	log.Infoln("📦 Extracting ISO contents...")
 	extractDir := b.extractDir()
 	// Remove existing directory if it exists
 	if _, err := os.Stat(extractDir); err == nil {
 		if err := os.RemoveAll(extractDir); err != nil {
-			fmt.Printf("❌ Failed to remove existing directory: %v\n", err)
+			log.Infoln("❌ Failed to remove existing directory: %v\n", err)
 			return false
 		}
 	}
 
 	// Create the extraction directory
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
-		fmt.Printf("❌ Failed to create directory: %v\n", err)
+		log.Infoln("❌ Failed to create directory: %v\n", err)
 		return false
 	}
 
@@ -145,20 +146,24 @@ func (b *ISOBuilder) extractIso() bool {
 		return false
 	}
 
-	fmt.Println("✅ Extraction complete")
+	log.Infoln("✅ Extraction complete")
 	return true
 }
 func (b *ISOBuilder) createAutoinstallConfigs() bool {
-	var config map[string]interface{}
-	if err := yaml.Unmarshal([]byte(b.cloudConfig), &b.cloudConfig); err != nil {
+	var config generate_cloud_config.CloudConfig
+	cfg := b.cloudConfig
+	if strings.HasPrefix("#cloud-config", cfg) {
+		cfg = strings.TrimPrefix("#cloud-config\n", cfg)
+	}
+	if err := yaml.Unmarshal([]byte(b.cloudConfig), &config); err != nil {
 		log.Errorf("error parsing cloud-config: %v", err)
 		return false
 	}
 	dump := strings.Join([]string{"#cloud-config", b.cloudConfig}, "\n")
-	hostname := ((config["autoinstall"].(map[string]any))["user-data"].(map[string]any))["hostname"].(string)
+	hostname := config.AutoInstall.UserData.Hostname
 
-	autoinstallFile := filepath.Join(b.extractDir(), "autoinstall")
-	if err := os.WriteFile(autoinstallFile, []byte(dump), 0644); err == nil {
+	autoinstallFile := filepath.Join(b.extractDir(), "autoinstall.yaml")
+	if err := os.WriteFile(autoinstallFile, []byte(dump), 0644); err != nil {
 		log.Errorf("error creating autoinstall config file: %v", err)
 		return false
 	}
@@ -236,63 +241,31 @@ func (b *ISOBuilder) modifyGrubConfig() bool {
 func (b *ISOBuilder) buildIso() bool {
 	log.Infoln("🔨 Building ISO image...")
 
+	// Extract MBR template from the system area of the source ISO
 	mbrFile := filepath.Join(b.extractDir(), "isohdpfx.bin")
-	if file, err := os.ReadFile(b.sourceIsoPath()); err != nil {
-		log.Errorf("error reading source ISO file: %v", err)
+	if err := b.extractMBRTemplate(mbrFile); err != nil {
+		log.Warnf("⚠️  Could not extract MBR template: %v. ISO may not boot on legacy BIOS", err)
+		mbrFile = "" // Clear it so we don't try to use it
 	} else {
-		if err = os.WriteFile(mbrFile, file, 0644); err != nil {
-			log.Warnf("error writing MBR file: %v", err)
-		}
+		log.Infof("✅ MBR template extracted (%d bytes)", 432)
 	}
 
 	efiImg := filepath.Join(b.extractDir(), "boot", "grub", "efi.img")
-	if err := os.MkdirAll(filepath.Dir(efiImg), 0755); err != nil {
-		log.Errorf("error creating EFI directory: %v", err)
-		return false
-	}
 
-	cmd := exec.Command("xorisso", "-indev", b.sourceIsoPath(), "-report_el_torito", "plain")
-	_, stderr := cmd.CombinedOutput()
+	// Check if efi.img already exists in extracted files
+	if stat, err := os.Stat(efiImg); err != nil || stat.Size() == 0 {
+		log.Infof("📀 Extracting EFI boot image from source ISO...")
 
-	var lba *string
-	var blocks *int
-
-	for _, line := range strings.Split(stderr.Error(), "\n") {
-		if strings.Contains(line, "EFI image start and size:") {
-			match := lbaRegex.FindStringSubmatch(line)
-			match1 := match[1]
-			lba = &match1                          // Assuming "lba" corresponds to the first captured group
-			blocks512, _ := strconv.Atoi(match[2]) // Assuming "block_count" corresponds to the second captured group
-			blocks128 := blocks512 / 4
-			blocks = &blocks128
-		}
-	}
-
-	if lba != nil && blocks != nil {
-		// Extract the EFI boot image using dd
-		cmd := exec.Command(
-			"dd",
-			fmt.Sprintf("if=%s", b.sourceIsoPath()),
-			"bs=2048",
-			fmt.Sprintf("skip=%d", lba),
-			fmt.Sprintf("count=%d", blocks),
-			fmt.Sprintf("of=%s", efiImg),
-		)
-		err := cmd.Run()
-		if err != nil {
-			log.Errorf("❌ Failed to extract EFI boot image: %v", err)
+		if !b.extractEfiImage(efiImg) {
 			return false
 		}
-		blockSize := *blocks * 2048
-		log.Infof("✅ EFI boot image extracted (LBA: %d, size: %dKB)\n", lba, blockSize/1024)
 	} else {
-		log.Errorf("⚠️  Warning: Could not detect EFI boot image location")
-		return false
+		log.Infof("✅ EFI image found in extracted files (%d KB)", stat.Size()/1024)
 	}
 
 	mkisofsCmdArgs := []string{
-		"xorriso", "-as", "mkisofs",
-		"-r", "-V", "Ubuntu Autoinstall",
+		"-as", "mkisofs",
+		"-r", "-V", "Ubuntu-Autoinstall",
 		"-J", "-joliet-long",
 		"-o", b.destIsoPath(),
 		"-b", "boot/grub/i386-pc/eltorito.img",
@@ -306,20 +279,104 @@ func (b *ISOBuilder) buildIso() bool {
 		"-isohybrid-gpt-basdat",
 	}
 
-	if _, err := os.Stat(mbrFile); err == nil {
+	if mbrFile != "" {
 		mkisofsCmdArgs = append(mkisofsCmdArgs, "-isohybrid-mbr", mbrFile)
 	}
 
 	mkisofsCmdArgs = append(mkisofsCmdArgs, b.extractDir())
 
-	cmd = exec.Command("xorisso", mkisofsCmdArgs...)
-	if _, err := cmd.CombinedOutput(); err != nil {
-		log.Errorf("error building ISO: %v\n", err)
+	cmd := exec.Command("xorriso", mkisofsCmdArgs...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("xorriso output:\n%s", string(out))
+		log.Errorf("error building ISO: %v", err)
 		return false
-	} else {
-		log.Infof("✅ ISO created: %s", b.destIsoPath())
 	}
 
+	log.Infof("✅ ISO created: %s", b.destIsoPath())
+	return true
+}
+
+// extractMBRTemplate extracts the MBR template from the system area of the ISO
+func (b *ISOBuilder) extractMBRTemplate(outputPath string) error {
+	// The MBR template is in the first 432 bytes of the ISO
+	// (some sources say 446 bytes, but xorriso typically uses 432)
+	cmd := exec.Command(
+		"dd",
+		fmt.Sprintf("if=%s", b.sourceIsoPath()),
+		fmt.Sprintf("of=%s", outputPath),
+		"bs=1",
+		"count=432",
+		"skip=0",
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("dd failed: %v, output: %s", err, string(output))
+	}
+
+	// Verify the file was created and has the right size
+	stat, err := os.Stat(outputPath)
+	if err != nil {
+		return fmt.Errorf("could not verify MBR file: %v", err)
+	}
+
+	if stat.Size() != 432 {
+		return fmt.Errorf("MBR file has unexpected size: %d bytes (expected 432)", stat.Size())
+	}
+
+	return nil
+}
+
+func (b *ISOBuilder) extractEfiImage(efiImg string) bool {
+	cmd := exec.Command("xorriso", "-indev", b.sourceIsoPath(), "-report_el_torito", "plain")
+	stdout, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("error running xorriso: %v", err)
+		return false
+	}
+
+	var lba string
+	var blocks int
+
+	for _, line := range strings.Split(string(stdout), "\n") {
+		if strings.Contains(line, "EFI image start and size:") {
+			match := lbaRegex.FindStringSubmatch(line)
+			if len(match) >= 4 {
+				lba = match[1]
+				blockSize, _ := strconv.Atoi(match[2])
+				blockCount, _ := strconv.Atoi(match[3])
+				blocks = (blockSize * blockCount) / 2048
+			}
+		}
+	}
+
+	if lba == "" || blocks == 0 {
+		log.Errorf("❌ Could not detect EFI boot image location")
+		return false
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(efiImg), 0755); err != nil {
+		log.Errorf("error creating EFI directory: %v", err)
+		return false
+	}
+
+	// Extract the EFI boot image using dd
+	cmd = exec.Command(
+		"dd",
+		fmt.Sprintf("if=%s", b.sourceIsoPath()),
+		"bs=2048",
+		fmt.Sprintf("skip=%s", lba),
+		fmt.Sprintf("count=%d", blocks),
+		fmt.Sprintf("of=%s", efiImg),
+	)
+	if err := cmd.Run(); err != nil {
+		log.Errorf("❌ Failed to extract EFI boot image: %v", err)
+		return false
+	}
+
+	log.Infof("✅ EFI boot image extracted (LBA: %s, size: %d KB)", lba, blocks*2)
 	return true
 }
 
@@ -360,9 +417,9 @@ func (b *ISOBuilder) Build() bool {
 	}
 
 	for _, step := range steps {
-		log.Infof("\n📍 Step: %s", step.name)
+		log.Infof("📍 Step: %s", step.name)
 		if !step.fn() {
-			log.Errorf("\\n❌ Build failed at: %s", step.name)
+			log.Errorf("❌ Build failed at: %s", step.name)
 			return false
 		}
 	}
@@ -370,10 +427,10 @@ func (b *ISOBuilder) Build() bool {
 	log.Infof(strings.Repeat("=", 60))
 	log.Infoln("✅ Build complete!")
 	log.Infof(strings.Repeat("=", 60))
-	log.Infof("\n📀 Output ISO: %s", b.destIsoPath())
-	log.Infof("\n💾 Write to USB with:")
-	log.Infof("   sudo dd if={self.output_iso} of=/dev/sdX bs=4M status=progress && sync")
-	log.Infof("\n")
+	log.Infof("📀 Output ISO: %s", b.destIsoPath())
+	log.Infof("💾 Write to USB with:")
+	log.Infof("sudo dd if=%s of=/dev/sdX bs=4M status=progress && sync", b.destIsoPath())
+	log.Infof("")
 
 	return true
 }

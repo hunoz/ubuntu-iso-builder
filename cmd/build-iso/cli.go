@@ -3,6 +3,7 @@ package buildiso
 import (
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/hunoz/ubuntu-iso-builder/utils"
 	log "github.com/sirupsen/logrus"
@@ -34,7 +35,11 @@ var BuildIsoCmd = &cobra.Command{
 		outputPath := FlagKey.OutputPath.Retrieve(v)
 		var cloudConfig string
 		if cmd.Flags().Changed(FlagKey.CloudConfigFile.Long) {
-			file, err := os.Open(cloudConfigFilepath)
+			absPath, err := filepath.Abs(cloudConfigFilepath)
+			if err != nil {
+				log.Fatalf("error getting absolute path of cloud-config file: %s", err)
+			}
+			file, err := os.Open(absPath)
 			if err != nil {
 				if os.IsNotExist(err) {
 					log.Fatalln("cloud-config file not found")
@@ -92,7 +97,7 @@ var BuildIsoCmd = &cobra.Command{
 func init() {
 	err := utils.AddFlags(FlagKey, BuildIsoCmd)
 	if err != nil {
-		println(err.Error())
+		log.Fatalf("error adding build flags: %v", err)
 		os.Exit(1)
 	}
 

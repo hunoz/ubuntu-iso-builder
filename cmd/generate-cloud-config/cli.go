@@ -61,7 +61,7 @@ var GenerateCloudConfigCmd = &cobra.Command{
 func init() {
 	err := utils.AddFlags(FlagKeys, GenerateCloudConfigCmd)
 	if err != nil {
-		println(err.Error())
+		log.Fatalf("error adding flags to generate-cloud-config: %v", err)
 		os.Exit(1)
 	}
 

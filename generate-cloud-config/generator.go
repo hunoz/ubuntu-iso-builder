@@ -105,14 +105,12 @@ func getEarlyCommands(ctx CloudConfigContext) (commands []string, err error) {
 			}(srcFile)
 
 			pathSplit := strings.Split(path, "/")
-			fmt.Printf("%#v\n", pathSplit)
 			var pathWithoutPrefix string
 			if pathSplit[0] == "files" {
 				pathWithoutPrefix = "/" + strings.TrimSuffix(strings.Join(pathSplit[1:], "/"), ".tpl")
 			} else {
 				pathWithoutPrefix = "/" + strings.TrimSuffix(strings.Join(pathSplit[:len(pathSplit)-1], "/"), ".tpl")
 			}
-			println(pathWithoutPrefix)
 			dir := filepath.Dir(pathWithoutPrefix)
 			baseName := pathSplit[len(pathSplit)-1]
 			var contents bytes.Buffer
@@ -279,6 +277,7 @@ func GenerateCloudConfig(ctx CloudConfigContext) (config string, err error) {
 	}
 
 	config = string(yamlData)
+	config = "#cloud-config\n" + config
 	return
 }
 

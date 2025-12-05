@@ -74,8 +74,8 @@ func DownloadWithProgress(url, filepath string) error {
 	if err != nil {
 		return err
 	}
-	
-	log.Println("Download complete!")
+
+	log.Infoln("Download complete!")
 	return nil
 }
 
@@ -116,6 +116,6 @@ func UploadWithProgress(url string, reader io.Reader, size int64) error {
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	fmt.Println("\nUpload complete!")
+	log.Infoln("Upload complete!")
 	return nil
 }
