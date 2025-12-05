@@ -58,7 +58,7 @@ func (b *ISOBuilder) sourceIsoPath() string {
 }
 
 func (b *ISOBuilder) destIsoPath() string {
-	return fmt.Sprintf("%s%s%s", b.outputPath, string(os.PathSeparator), "ubuntu.iso")
+	return fmt.Sprintf("%s%s%s", b.outputPath, string(os.PathSeparator), fmt.Sprintf("ubuntu-%s-autoinstall.iso", b.version))
 }
 
 func (b *ISOBuilder) checkDependencies() bool {
