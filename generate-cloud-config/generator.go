@@ -138,20 +138,6 @@ func getEarlyCommands(ctx CloudConfigContext) (commands []string, err error) {
 				outputFile = fmt.Sprintf("/home/%s/.ssh/authorized_keys", ctx.AdminUsername)
 				command := fmt.Sprintf(`curtin in-target -- echo "%s" | base64 -d > %s`, base64Content, "home/root/.ssh/authorized_keys")
 				commands = append(commands, "curtin in-target -- mkdir -p /home/root/.ssh", command)
-			} else if baseName == ".bashrc" {
-				outputFile = fmt.Sprintf("/home/%s/.bashrc", ctx.AdminUsername)
-				command := fmt.Sprintf(`curtin in-target -- echo "%s" | base64 -d > %s`, base64Content, "home/root/.bashrc")
-				if !slices.Contains(commands, "curtin in-target --mkdir -p /home/root") {
-					commands = append(commands, "curtin in-target -- mkdir -p /home/root")
-				}
-				commands = append(commands, command)
-			} else if baseName == ".vimrc" {
-				outputFile = fmt.Sprintf("/home/%s/.vimrc", ctx.AdminUsername)
-				command := fmt.Sprintf(`curtin in-target -- echo "%s" | base64 -d > %s`, base64Content, "home/root/.vimrc")
-				if !slices.Contains(commands, "curtin in-target --mkdir -p /home/root") {
-					commands = append(commands, "curtin in-target -- mkdir -p /home/root")
-				}
-				commands = append(commands, command)
 			} else {
 				outputFile = pathWithoutPrefix
 			}

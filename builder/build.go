@@ -62,6 +62,7 @@ func (b *ISOBuilder) destIsoPath() string {
 }
 
 func (b *ISOBuilder) checkDependencies() bool {
+	log.Infof("⚙️ Checking dependencies")
 	commands := []Dependency{
 		{
 			Name:         "xorriso",
@@ -72,6 +73,11 @@ func (b *ISOBuilder) checkDependencies() bool {
 			Name:         "7z",
 			CheckCommand: func() bool { return commandIsInPath("7z") },
 			FixMessage:   "7z needs to be installed",
+		},
+		{
+			Name:         "dd",
+			CheckCommand: func() bool { return commandIsInPath("dd") },
+			FixMessage:   "dd needs to be installed",
 		},
 	}
 
@@ -84,6 +90,7 @@ func (b *ISOBuilder) checkDependencies() bool {
 
 		return false
 	}
+	log.Infoln("✅ All dependencies are installed")
 	return true
 }
 
@@ -94,8 +101,10 @@ func (b *ISOBuilder) modifyGrubForAutoinstall(content string) string {
 }
 
 func (b *ISOBuilder) downloadIso() bool {
+	log.Infof("📀 Checking if ISO is already present")
 	stat, err := os.Stat(b.sourceIsoPath())
 	if err == nil && stat.Size() > 0 {
+		log.Infof("📀 ISO already present")
 		size := stat.Size()
 		log.Debugf("Size: %d GB", size)
 		return true
