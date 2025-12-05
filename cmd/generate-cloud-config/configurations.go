@@ -1,4 +1,4 @@
-package buildiso
+package generatecloudinit
 
 import (
 	"os"
@@ -9,56 +9,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-var FlagKey = struct {
-	CloudConfigFile utils.FlagKey[string]
-	Type            utils.FlagKey[string]
-	OutputPath      utils.FlagKey[string]
-}{
-	CloudConfigFile: utils.FlagKey[string]{
-		Long:        "cloud-config",
-		Short:       "f",
-		Description: "The fully rendered cloud-config file",
-		Add: func(command *cobra.Command) {
-			command.Flags().StringP("cloud-config-file", "f", "", "Path to the cloud-config file")
-			_ = command.MarkFlagRequired("cloud-config")
-		},
-		Retrieve: func(v *viper.Viper) string {
-			return v.GetString("cloud-config")
-		},
-	},
-	Type: utils.FlagKey[string]{
-		Long:        "type",
-		Short:       "t",
-		Description: "Type of the machine that the machine using the ISO will have",
-		Add: func(cmd *cobra.Command) {
-			cmd.Flags().StringP("type", "t", "server", "Type of the machine that the machine using the ISO will have [server, desktop]")
-		},
-		Retrieve: func(v *viper.Viper) string {
-			return v.GetString("type")
-		},
-	},
-	OutputPath: utils.FlagKey[string]{
-		Long:        "output-path",
-		Short:       "o",
-		Description: "Output path where the ISO will be written to",
-		Add: func(cmd *cobra.Command) {
-			tmpDir := os.TempDir()
-			outputPath := filepath.Join(tmpDir, "ubuntu.iso")
-			cmd.Flags().StringP("output-path", "o", outputPath, "Output path where the cloud-config file will be written to")
-		},
-		Retrieve: func(v *viper.Viper) string {
-			return v.GetString("output-path")
-		},
-	},
-}
-
-var AlternateFlagKeys = struct {
+var FlagKeys = struct {
 	Hostname         utils.FlagKey[string]
 	AdminUsername    utils.FlagKey[string]
 	AdminPassword    utils.FlagKey[string]
 	RootPassword     utils.FlagKey[string]
 	SSHKey           utils.FlagKey[[]string]
-	Type             utils.FlagKey[string]
 	DiskSerial       utils.FlagKey[string]
 	PlexClaim        utils.FlagKey[string]
 	CloudflaredToken utils.FlagKey[string]
@@ -120,17 +76,6 @@ var AlternateFlagKeys = struct {
 			return v.GetStringSlice("ssh-key")
 		},
 	},
-	Type: utils.FlagKey[string]{
-		Long:        "type",
-		Short:       "t",
-		Description: "Type of the machine that the machine using the ISO will have",
-		Add: func(cmd *cobra.Command) {
-			cmd.Flags().StringP("type", "t", "server", "Type of the machine that the machine using the ISO will have [server, desktop]")
-		},
-		Retrieve: func(v *viper.Viper) string {
-			return v.GetString("type")
-		},
-	},
 	DiskSerial: utils.FlagKey[string]{
 		Long:        "disk-serial",
 		Short:       "s",
@@ -170,10 +115,10 @@ var AlternateFlagKeys = struct {
 	OutputPath: utils.FlagKey[string]{
 		Long:        "output-path",
 		Short:       "o",
-		Description: "Output path where the ISO will be written to",
+		Description: "Output path where the cloud-config file will be written to",
 		Add: func(cmd *cobra.Command) {
 			tmpDir := os.TempDir()
-			outputPath := filepath.Join(tmpDir, "ubuntu.iso")
+			outputPath := filepath.Join(tmpDir, "cloud-config.yaml")
 			cmd.Flags().StringP("output-path", "o", outputPath, "Output path where the cloud-config file will be written to")
 		},
 		Retrieve: func(v *viper.Viper) string {

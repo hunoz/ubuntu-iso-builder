@@ -1,0 +1,15 @@
+[Unit]
+Description=First Boot Configuration
+After=multi-user.target
+Wants=multi-user.target
+ConditionPathExists=!/var/lib/first-boot-complete
+
+[Service]
+Type=oneshot
+ExecStart=/opt/postinstall/first-boot
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Containers Compose Application
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/containers
+ExecStart=/usr/local/bin/docker compose up -f compose.yml -d
+ExecStop=/usr/local/bin/docker compose -f compose.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
